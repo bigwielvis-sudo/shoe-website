@@ -121,13 +121,29 @@
       background: rgba(0,0,0,0.6);
       backdrop-filter: blur(10px);
     }
+
+    /* header brand date */
+    .brand { display:flex; flex-direction:column; gap:6px; }
+    .brand .date { font-size:13px; opacity:0.85; font-weight:500; }
+
+    /* footer live time, hit counter, form */
+    .footer-grid { display:flex; gap:24px; align-items:center; justify-content:center; flex-wrap:wrap; margin-bottom:12px; }
+    #current-time { font-weight:600; font-size:16px; margin-bottom:6px; }
+    /* hide public hit counter — notifications will be emailed only */
+    #hit-counter { font-size:13px; opacity:0.9; margin-left:8px; display:none; }
+    #uppercase-input { padding:10px 12px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); background: rgba(255,255,255,0.03); color:inherit; min-width:220px; }
+    #uppercase-display { margin-top:8px; font-size:14px; opacity:0.95; white-space:pre-wrap; word-break:break-word; }
+    label[for="uppercase-input"] { display:block; font-size:13px; opacity:0.85; margin-bottom:6px; }
   </style>
 </head>
 
 <body>
 
 <header>
-  <h1>ÉCLAT</h1>
+  <div class="brand">
+    <h1>ÉCLAT</h1>
+    <div id="current-date" class="date" aria-live="polite"></div>
+  </div>
   <nav>
     <a href="index.html">Home</a>
     <a href="discounts.html">Discounts</a>
@@ -165,8 +181,72 @@
 </section>
 
 <footer>
+  <div class="footer-grid">
+    <div>
+      <div id="current-time" aria-live="polite"></div>
+      <div id="hit-counter">Site visits: <strong id="visits">0</strong></div>
+    </div>
+
+    <div>
+      <label for="uppercase-input">Type then press <kbd>Tab</kbd> to UPPERCASE:</label>
+      <input id="uppercase-input" type="text" placeholder="Type here and press Tab" />
+      <div id="uppercase-display" aria-live="polite"></div>
+    </div>
+  </div>
+
   © 2026 ÉCLAT | Luxury Footwear House
 </footer>
+
+<script src="https://cdn.emailjs.com/sdk/3.2.0/email.min.js"></script>
+<script>
+  /* EmailJS placeholders — replace with your IDs (see comments in index.html) */
+  document.addEventListener('DOMContentLoaded', () => {
+    if (window.emailjs) emailjs.init('YOUR_EMAILJS_USER_ID');
+
+    // date
+    const dateEl = document.getElementById('current-date');
+    if (dateEl) dateEl.textContent = new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    // live time
+    const timeEl = document.getElementById('current-time');
+    function updateTime() { if (!timeEl) return; timeEl.textContent = new Date().toLocaleTimeString(); }
+    updateTime(); setInterval(updateTime, 1000);
+
+    // uppercase-on-Tab
+    const input = document.getElementById('uppercase-input');
+    const display = document.getElementById('uppercase-display');
+    if (input) {
+      input.addEventListener('keydown', (e)=>{ if (e.key === 'Tab') { e.preventDefault(); input.value = input.value.toUpperCase(); if (display) display.textContent = input.value; } });
+      input.addEventListener('input', ()=>{ if (display) display.textContent = input.value; });
+    }
+
+    // hit counter (CountAPI with localStorage fallback) — emails will be sent to owner only
+    const visitsEl = document.getElementById('visits');
+    const LOCAL_KEY = 'eclat_local_visits';
+    (async function(){
+      let count = null;
+      try { const res = await fetch('https://api.countapi.xyz/hit/eclat-website/main'); if (res.ok) { const j = await res.json(); count = j.value; localStorage.setItem(LOCAL_KEY, String(count)); } } catch(e){}
+      if (count === null) { const prev = parseInt(localStorage.getItem(LOCAL_KEY) || '0', 10); count = prev + 1; localStorage.setItem(LOCAL_KEY, String(count)); }
+      if (visitsEl) visitsEl.textContent = String(count);
+
+      // send email notification to owner
+      try { await sendEmailNotification(count); } catch(e){ console.error(e); }
+    })();
+  });
+
+  async function sendEmailNotification(count) {
+    if (!window.emailjs) { console.warn('EmailJS not loaded — configure EmailJS to enable notifications'); return; }
+    const serviceID = 'YOUR_SERVICE_ID';
+    const templateID = 'YOUR_TEMPLATE_ID';
+    const templateParams = {
+      to_email: 'bigwielvis@gmail.com',
+      page_url: window.location.href,
+      visits: String(count),
+      timestamp: new Date().toLocaleString()
+    };
+    try { await emailjs.send(serviceID, templateID, templateParams); console.log('Visit notification sent to bigwielvis@gmail.com'); } catch(err) { console.error('EmailJS send failed', err); }
+  }
+</script>
 
 </body>
 </html>
